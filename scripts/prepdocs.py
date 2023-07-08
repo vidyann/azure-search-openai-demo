@@ -14,7 +14,6 @@ from azure.search.documents.indexes.models import *
 from azure.search.documents import SearchClient
 from azure.ai.formrecognizer import DocumentAnalysisClient
 import azure.cognitiveservices.speech as speechsdk
-from azure.cognitiveservices.speech import SpeechConfig
 from moviepy.editor import *
 from docx2pdf import convert
 
