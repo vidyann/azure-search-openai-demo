@@ -40,7 +40,7 @@ parser.add_argument("--removeall", action="store_true", help="Remove all blobs f
 parser.add_argument("--localpdfparser", action="store_true", help="Use PyPdf local PDF parser (supports only digital PDFs) instead of Azure Form Recognizer service to extract text, tables and layout from the documents")
 parser.add_argument("--formrecognizerservice", required=False, help="Optional. Name of the Azure Form Recognizer service which will be used to extract text, tables and layout from the documents (must exist already)")
 parser.add_argument("--formrecognizerkey", required=False, help="Optional. Use this Azure Form Recognizer account key instead of the current user identity to login (use az login to set current user for Azure)")
-parser.add_argument("--speechservice", required=True, help="Use this Azure Speech to Text account. ")
+parser.add_argument("--speechservice", required=False, help="Use this Azure Speech to Text account. ")
 parser.add_argument("--speechkey", required=False, help="Optional. Use this Azure Speech to Text account key. ")
 parser.add_argument("--region", required=True, help=" Use this Azure Speech to Text region ")
 parser.add_argument("--subscriptionid", required=True, help=" Use this Subscription ID)")
@@ -54,6 +54,7 @@ default_creds = azd_credential if args.searchkey == None or args.storagekey == N
 search_creds = default_creds if args.searchkey == None else AzureKeyCredential(args.searchkey)
 speechtotext_creds = default_creds if args.speechkey == None else AzureKeyCredential(args.speechkey)
 region = args.region
+print(f"Using region {region}")
 subscription_id = args.subscriptionid
 resource_group = args.resourcegroup
 
@@ -65,6 +66,8 @@ if not args.localpdfparser:
         print("Error: Azure Form Recognizer service is not provided. Please provide formrecognizerservice or use --localpdfparser for local pypdf parser.")
         exit(1)
     formrecognizer_creds = default_creds if args.formrecognizerkey == None else AzureKeyCredential(args.formrecognizerkey)
+if args.speechservice == None or args.speechservice.lower() == "none":
+        print("Info: Azure Speech service is not provided. Please provide speechservice if your data includes Video/Audio (MP4, WAV supported).")
 
 def blob_name_from_file_page(filename, page = 0):
     if os.path.splitext(filename)[1].lower() == ".pdf":
@@ -127,8 +130,6 @@ def upload_blobs(filename):
         result = speech_recognizer.recognize_once()
         # Print the transcription result
         #print(result.text)
-        # Remove the audio file
-        #os.remove(audio_file)
 
         if result.reason == speechsdk.ResultReason.RecognizedSpeech:
             file_name = os.path.splitext(filename)[0] + ".txt"
@@ -187,20 +188,19 @@ def table_to_html(table):
 def get_document_text(filename):
     offset = 0
     page_map = []
-    if args.localpdfparser:
+
+    if os.path.splitext(filename)[1].lower()  in [".txt"]:
+        with open(filename, "r") as f:
+            page_text = f.read()
+            page_map.append((1, offset, page_text))
+
+    elif args.localpdfparser:
         reader = PdfReader(filename)
         pages = reader.pages
         for page_num, p in enumerate(pages):
             page_text = p.extract_text()
             page_map.append((page_num, offset, page_text))
             offset += len(page_text)
-
-    elif os.path.splitext(filename)[1].lower()  in [".txt"]:
-        with open(filename, "r") as f:
-            page_text = f.read()
-            page_map.append((1, 0, page_text))
-        #remove the file
-        #os.remove(filename)
 
     else:
         if args.verbose: print(f"Extracting text from '{filename}' using Azure Form Recognizer")
@@ -380,6 +380,8 @@ else:
 
     print(f"Processing files...")
     for filename in glob.glob(args.files):
+        if os.path.splitext(filename)[1].lower() in [".wav", ".mp4"] and (args.speechservice == None or args.speechservice.lower() == "none") :
+            continue
         if args.verbose: print(f"Processing '{filename}'")
         if args.remove:
             remove_blobs(filename)

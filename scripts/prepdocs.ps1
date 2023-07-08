@@ -36,4 +36,4 @@ Start-Process -FilePath $venvPythonPath -ArgumentList "-m pip install -r ./scrip
 
 Write-Host 'Running "prepdocs.py"'
 $cwd = (Get-Location)
-Start-Process -FilePath $venvPythonPath -ArgumentList "./scripts/prepdocs.py $cwd/data/* --storageaccount $env:AZURE_STORAGE_ACCOUNT --container $env:AZURE_STORAGE_CONTAINER --searchservice $env:AZURE_SEARCH_SERVICE --index $env:AZURE_SEARCH_INDEX --formrecognizerservice $env:AZURE_FORMRECOGNIZER_SERVICE --tenantid $env:AZURE_TENANT_ID  --subscriptionid $env:AZURE_SUBSCRIPTION_ID --speechservice $env:AZURE_SPEECH_SERVICE --region $env:AZURE_LOCATION --resourcegroup $env:AZURE_RESOURCE_GROUP -v" -Wait -NoNewWindow
+Start-Process -FilePath $venvPythonPath -ArgumentList "./scripts/prepdocs.py $cwd/data/* --storageaccount $env:AZURE_STORAGE_ACCOUNT --container $env:AZURE_STORAGE_CONTAINER --searchservice $env:AZURE_SEARCH_SERVICE --index $env:AZURE_SEARCH_INDEX --formrecognizerservice $env:AZURE_FORMRECOGNIZER_SERVICE --tenantid $env:AZURE_TENANT_ID  --subscriptionid $env:AZURE_SUBSCRIPTION_ID --region $env:AZURE_LOCATION --resourcegroup $env:AZURE_RESOURCE_GROUP --speechservice $env:AZURE_SPEECH_SERVICE -v" -Wait -NoNewWindow
