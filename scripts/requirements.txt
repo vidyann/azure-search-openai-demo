@@ -5,3 +5,4 @@ azure-ai-formrecognizer==3.2.1
 azure-storage-blob==12.14.1
 azure-cognitiveservices-speech==1.30.0
 moviepy==1.0.3
+docx2pdf==0.1.8

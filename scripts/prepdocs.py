@@ -40,8 +40,11 @@ parser.add_argument("--removeall", action="store_true", help="Remove all blobs f
 parser.add_argument("--localpdfparser", action="store_true", help="Use PyPdf local PDF parser (supports only digital PDFs) instead of Azure Form Recognizer service to extract text, tables and layout from the documents")
 parser.add_argument("--formrecognizerservice", required=False, help="Optional. Name of the Azure Form Recognizer service which will be used to extract text, tables and layout from the documents (must exist already)")
 parser.add_argument("--formrecognizerkey", required=False, help="Optional. Use this Azure Form Recognizer account key instead of the current user identity to login (use az login to set current user for Azure)")
-parser.add_argument("--speechtotextkey", required=True, help="Optional. Use this Azure Speech to Text account key instead of the current user identity to login (use az login to set current user for Azure)")
-parser.add_argument("--region", required=True, help="Optional. Use this Azure Speech to Text region ")
+parser.add_argument("--speechservice", required=True, help="Use this Azure Speech to Text account. ")
+parser.add_argument("--speechkey", required=False, help="Optional. Use this Azure Speech to Text account key. ")
+parser.add_argument("--region", required=True, help=" Use this Azure Speech to Text region ")
+parser.add_argument("--subscriptionid", required=True, help=" Use this Subscription ID)")
+parser.add_argument("--resourcegroup", required=True, help=" Use this Subscription ID)")
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 args = parser.parse_args()
 
@@ -49,8 +52,10 @@ args = parser.parse_args()
 azd_credential = AzureDeveloperCliCredential() if args.tenantid == None else AzureDeveloperCliCredential(tenant_id=args.tenantid, process_timeout=60)
 default_creds = azd_credential if args.searchkey == None or args.storagekey == None else None
 search_creds = default_creds if args.searchkey == None else AzureKeyCredential(args.searchkey)
-speechtotext_creds = args.speechtotextkey
-speechtotext_region = args.region
+speechtotext_creds = default_creds if args.speechkey == None else AzureKeyCredential(args.speechkey)
+region = args.region
+subscription_id = args.subscriptionid
+resource_group = args.resourcegroup
 
 if not args.skipblobs:
     storage_creds = default_creds if args.storagekey == None else args.storagekey
@@ -106,7 +111,14 @@ def upload_blobs(filename):
             audio.write_audiofile(audio_file)
 
         #transcribe audio to text using azure cognitive service speech to text
-        speech_config = speechsdk.SpeechConfig(subscription=speechtotext_creds, region=speechtotext_region)
+        aad_token = speechtotext_creds.get_token("https://cognitiveservices.azure.com/.default")
+        token = aad_token.token
+        resource_id = f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.CognitiveServices/accounts/{args.speechservice}"
+        authorization_token = f"aad#{resource_id}#{token}"
+        print(f"authorization_token: {authorization_token}")
+        #speech_config = speechsdk.SpeechConfig(subscription=speechtotext_creds, region=speechtotext_region)
+        speech_config = speechsdk.SpeechConfig(auth_token=authorization_token, region=region)
+
         audio_config = speechsdk.AudioConfig(filename=audio_file)
         speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
         speech_recognizer.profanity_option = speechsdk.ProfanityOption.Masked
