@@ -13,6 +13,10 @@ from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import *
 from azure.search.documents import SearchClient
 from azure.ai.formrecognizer import DocumentAnalysisClient
+import azure.cognitiveservices.speech as speechsdk
+from azure.cognitiveservices.speech import SpeechConfig
+from moviepy.editor import *
+from docx2pdf import convert
 
 MAX_SECTION_LENGTH = 1000
 SENTENCE_SEARCH_LIMIT = 100
@@ -20,7 +24,7 @@ SECTION_OVERLAP = 100
 
 parser = argparse.ArgumentParser(
     description="Prepare documents by extracting content from PDFs, splitting content into sections, uploading to blob storage, and indexing in a search index.",
-    epilog="Example: prepdocs.py '..\data\*' --storageaccount myaccount --container mycontainer --searchservice mysearch --index myindex -v"
+    epilog="Example: prepdocs.py '..\data\*' --storageaccount myaccount --container mycontainer --containerdata data --searchservice mysearch --index myindex --speechtotextkey key --region region -v"
     )
 parser.add_argument("files", help="Files to be processed")
 parser.add_argument("--category", help="Value for the category field in the search index for all sections indexed in this run")
@@ -37,6 +41,8 @@ parser.add_argument("--removeall", action="store_true", help="Remove all blobs f
 parser.add_argument("--localpdfparser", action="store_true", help="Use PyPdf local PDF parser (supports only digital PDFs) instead of Azure Form Recognizer service to extract text, tables and layout from the documents")
 parser.add_argument("--formrecognizerservice", required=False, help="Optional. Name of the Azure Form Recognizer service which will be used to extract text, tables and layout from the documents (must exist already)")
 parser.add_argument("--formrecognizerkey", required=False, help="Optional. Use this Azure Form Recognizer account key instead of the current user identity to login (use az login to set current user for Azure)")
+parser.add_argument("--speechtotextkey", required=True, help="Optional. Use this Azure Speech to Text account key instead of the current user identity to login (use az login to set current user for Azure)")
+parser.add_argument("--region", required=True, help="Optional. Use this Azure Speech to Text region ")
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 args = parser.parse_args()
 
@@ -44,6 +50,9 @@ args = parser.parse_args()
 azd_credential = AzureDeveloperCliCredential() if args.tenantid == None else AzureDeveloperCliCredential(tenant_id=args.tenantid, process_timeout=60)
 default_creds = azd_credential if args.searchkey == None or args.storagekey == None else None
 search_creds = default_creds if args.searchkey == None else AzureKeyCredential(args.searchkey)
+speechtotext_creds = args.speechtotextkey
+speechtotext_region = args.region
+
 if not args.skipblobs:
     storage_creds = default_creds if args.storagekey == None else args.storagekey
 if not args.localpdfparser:
@@ -65,6 +74,14 @@ def upload_blobs(filename):
     if not blob_container.exists():
         blob_container.create_container()
 
+    # if file is a Word document convert to PDF
+    if os.path.splitext(filename)[1].lower() in [".docx"]:
+        # Set up the file path
+        pdf_file = os.path.splitext(filename)[0].lower() + ".pdf"
+        # Convert the Word document to PDF
+        convert(filename, pdf_file)
+        filename = pdf_file
+
     # if file is PDF split into pages and upload each page as a separate blob
     if os.path.splitext(filename)[1].lower() == ".pdf":
         reader = PdfReader(filename)
@@ -78,12 +95,70 @@ def upload_blobs(filename):
             writer.write(f)
             f.seek(0)
             blob_container.upload_blob(blob_name, f, overwrite=True)
+
+    # else if file is a video/audio
+    elif os.path.splitext(filename)[1].lower() in [".wav", ".mp4"]:
+        audio_file = filename
+        if os.path.splitext(filename)[1].lower() != ".wav":
+            # convert video to audio
+            audio_file = os.path.splitext(filename)[0].lower() + ".wav"
+            video = VideoFileClip(filename)
+            audio = video.audio
+            audio.write_audiofile(audio_file)
+
+        #transcribe audio to text using azure cognitive service speech to text
+        #Get subscription key and region from environment variables
+        #speech_key, service_region = os.environ.get("SPEECH_KEY"), os.environ.get("SERVICE_REGION")
+        #print(f"\tSpeechkey {speech_key} {service_region}")
+        #print ("checking speech key and region")
+        #speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
+        speech_config = speechsdk.SpeechConfig(subscription=speechtotext_creds, region=speechtotext_region)
+        #aad_token = speechtotext_creds.get_token("https://eastus.api.cognitive.microsoft.com/sts/v1.0/issuetoken")
+        #aad_token = speechtotext_creds.get_token("https://cognitiveservices.azure.com/.default")
+        #token = aad_token.token
+        #resource_id = "/subscriptions/f1faef84-12ad-4dc5-aef4-54f40310245c/resourceGroups/rg-openaisearch-dev/providers/Microsoft.CognitiveServices/accounts/cog-fr-cl7i2ktocqmee"
+        #authorization_token = f"aad#{resource_id}#{token}"
+        #speech_config = speechsdk.SpeechConfig(subscription=, region="eastus")
+        #(authorization_token, region="eastus")
+
+        #speech_config = Sp(region="eastus", authorization_token=authorization_token)
+
+        #speech_config.speech_recognition_language="en-US"
+        #print(f"file '{audio_file}")
+        audio_config = speechsdk.AudioConfig(filename=audio_file)
+        speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+        speech_recognizer.profanity_option = speechsdk.ProfanityOption.Masked
+
+        # Perform the transcription
+        result = speech_recognizer.recognize_once()
+        # Print the transcription result
+        if result.reason == speechsdk.ResultReason.RecognizedSpeech:
+            print(result.text)
+            file_name = os.path.splitext(filename)[0] + ".txt"
+            #write the transcription result  to local file system
+            with open(file_name, "w") as f:
+                f.write(result.text)
+            # Upload the transcription result to blob storage
+            print(f"blob file to upload '{file_name}")
+            blob_name = os.path.splitext(os.path.basename(filename))[0]  + ".txt"
+            blob_container.upload_blob(blob_name, result.text, overwrite=True)
+            filename=file_name
+        elif result.reason == speechsdk.ResultReason.NoMatch:
+            print("No speech could be recognized")
+        elif result.reason == speechsdk.ResultReason.Canceled:
+            cancellation_details = result.cancellation_details
+            print(f"Speech recognition canceled: {cancellation_details.reason}")
+            if cancellation_details.reason == speechsdk.CancellationReason.Error:
+                print(f"Error details: {cancellation_details.error_details}")
+
     else:
         blob_name = blob_name_from_file_page(filename)
         with open(filename,"rb") as data:
             blob_container.upload_blob(blob_name, data, overwrite=True)
 
-def remove_blobs(filename):
+    return filename
+
+def remove_blobs(filename): 
     if args.verbose: print(f"Removing blobs for '{filename or '<all>'}'")
     blob_service = BlobServiceClient(account_url=f"https://{args.storageaccount}.blob.core.windows.net", credential=storage_creds)
     blob_container = blob_service.get_container_client(args.container)
@@ -122,6 +197,12 @@ def get_document_text(filename):
             page_text = p.extract_text()
             page_map.append((page_num, offset, page_text))
             offset += len(page_text)
+
+    elif os.path.splitext(filename)[1].lower()  in [".txt"]:
+        with open(filename, "r") as f:
+            page_text = f.read()
+            page_map.append((1, 0, page_text))
+
     else:
         if args.verbose: print(f"Extracting text from '{filename}' using Azure Form Recognizer")
         form_recognizer_client = DocumentAnalysisClient(endpoint=f"https://{args.formrecognizerservice}.cognitiveservices.azure.com/", credential=formrecognizer_creds, headers={"x-ms-useragent": "azure-search-chat-demo/1.0.0"})
@@ -297,7 +378,7 @@ if args.removeall:
 else:
     if not args.remove:
         create_search_index()
-    
+
     print(f"Processing files...")
     for filename in glob.glob(args.files):
         if args.verbose: print(f"Processing '{filename}'")
@@ -309,7 +390,30 @@ else:
             remove_from_index(None)
         else:
             if not args.skipblobs:
-                upload_blobs(filename)
+               filename = upload_blobs(filename)
             page_map = get_document_text(filename)
             sections = create_sections(os.path.basename(filename), page_map)
             index_sections(os.path.basename(filename), sections)
+
+    #generate code to get files from azure storage account
+'''''
+    if args.verbose: print(f"Getting files from '{args.containerdata}' container in '{args.storageaccount}' storage account")
+    blob_service_client = BlobServiceClient(account_url=f"https://{args.storageaccount}.blob.core.windows.net/",
+                                            credential=storage_creds)
+    container_client = blob_service_client.get_container_client(args.containerdata)
+    if args.verbose: print(f"Getting list of blobs in '{args.containerdata}' container")
+    blobs = container_client.list_blob_names()
+    #if args.verbose: print(f"Found {len(list(blobs))} blobs in '{args.containerdata}' container")
+    if args.verbose: print(f"Processing files...")
+    for blob in blobs:
+        if args.verbose: print(f"Processing '{blob}' ")
+        if args.remove:
+            remove_blobs(blob)
+            remove_from_index(blob)
+        else:
+            if not args.skipblobs:
+                upload_blobs(blob)
+            page_map = get_document_text(blob)
+            sections = create_sections(blob, page_map)
+            index_sections(blob, sections)
+'''''
