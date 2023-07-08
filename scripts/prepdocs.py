@@ -77,7 +77,7 @@ def upload_blobs(filename):
     # if file is a Word document convert to PDF
     if os.path.splitext(filename)[1].lower() in [".docx"]:
         # Set up the file path
-        pdf_file = os.path.splitext(filename)[0].lower() + ".pdf"
+        pdf_file = os.path.splitext(filename)[0] + ".pdf"
         # Convert the Word document to PDF
         convert(filename, pdf_file)
         filename = pdf_file
@@ -101,30 +101,13 @@ def upload_blobs(filename):
         audio_file = filename
         if os.path.splitext(filename)[1].lower() != ".wav":
             # convert video to audio
-            audio_file = os.path.splitext(filename)[0].lower() + ".wav"
+            audio_file = os.path.splitext(filename)[0] + ".wav"
             video = VideoFileClip(filename)
             audio = video.audio
             audio.write_audiofile(audio_file)
 
         #transcribe audio to text using azure cognitive service speech to text
-        #Get subscription key and region from environment variables
-        #speech_key, service_region = os.environ.get("SPEECH_KEY"), os.environ.get("SERVICE_REGION")
-        #print(f"\tSpeechkey {speech_key} {service_region}")
-        #print ("checking speech key and region")
-        #speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
         speech_config = speechsdk.SpeechConfig(subscription=speechtotext_creds, region=speechtotext_region)
-        #aad_token = speechtotext_creds.get_token("https://eastus.api.cognitive.microsoft.com/sts/v1.0/issuetoken")
-        #aad_token = speechtotext_creds.get_token("https://cognitiveservices.azure.com/.default")
-        #token = aad_token.token
-        #resource_id = "/subscriptions/f1faef84-12ad-4dc5-aef4-54f40310245c/resourceGroups/rg-openaisearch-dev/providers/Microsoft.CognitiveServices/accounts/cog-fr-cl7i2ktocqmee"
-        #authorization_token = f"aad#{resource_id}#{token}"
-        #speech_config = speechsdk.SpeechConfig(subscription=, region="eastus")
-        #(authorization_token, region="eastus")
-
-        #speech_config = Sp(region="eastus", authorization_token=authorization_token)
-
-        #speech_config.speech_recognition_language="en-US"
-        #print(f"file '{audio_file}")
         audio_config = speechsdk.AudioConfig(filename=audio_file)
         speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
         speech_recognizer.profanity_option = speechsdk.ProfanityOption.Masked
@@ -132,8 +115,11 @@ def upload_blobs(filename):
         # Perform the transcription
         result = speech_recognizer.recognize_once()
         # Print the transcription result
+        #print(result.text)
+        # Remove the audio file
+        #os.remove(audio_file)
+
         if result.reason == speechsdk.ResultReason.RecognizedSpeech:
-            print(result.text)
             file_name = os.path.splitext(filename)[0] + ".txt"
             #write the transcription result  to local file system
             with open(file_name, "w") as f:
@@ -202,6 +188,8 @@ def get_document_text(filename):
         with open(filename, "r") as f:
             page_text = f.read()
             page_map.append((1, 0, page_text))
+        #remove the file
+        #os.remove(filename)
 
     else:
         if args.verbose: print(f"Extracting text from '{filename}' using Azure Form Recognizer")
@@ -394,26 +382,3 @@ else:
             page_map = get_document_text(filename)
             sections = create_sections(os.path.basename(filename), page_map)
             index_sections(os.path.basename(filename), sections)
-
-    #generate code to get files from azure storage account
-'''''
-    if args.verbose: print(f"Getting files from '{args.containerdata}' container in '{args.storageaccount}' storage account")
-    blob_service_client = BlobServiceClient(account_url=f"https://{args.storageaccount}.blob.core.windows.net/",
-                                            credential=storage_creds)
-    container_client = blob_service_client.get_container_client(args.containerdata)
-    if args.verbose: print(f"Getting list of blobs in '{args.containerdata}' container")
-    blobs = container_client.list_blob_names()
-    #if args.verbose: print(f"Found {len(list(blobs))} blobs in '{args.containerdata}' container")
-    if args.verbose: print(f"Processing files...")
-    for blob in blobs:
-        if args.verbose: print(f"Processing '{blob}' ")
-        if args.remove:
-            remove_blobs(blob)
-            remove_from_index(blob)
-        else:
-            if not args.skipblobs:
-                upload_blobs(blob)
-            page_map = get_document_text(blob)
-            sections = create_sections(blob, page_map)
-            index_sections(blob, sections)
-'''''
