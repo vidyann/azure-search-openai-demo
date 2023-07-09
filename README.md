@@ -58,9 +58,8 @@ You can run this repo virtually by using GitHub Codespaces or VS Code Remote Con
     * note that this command will initialize a git repository and you do not need to clone this repository
 
 #### Starting from scratch
-To enable indexing Audio/Video (MP4/WAV only) file, you need to provision Azure Speech Service and set environment variable. If not, the above files are not indexed.
+>NOTE: To enable indexing Audio/Video (MP4/WAV only) file, you need to provision Azure Speech Service and set environment variable. If not, the above files are not indexed. Rest of the instructions are same as the repository from where it is forked.
 1. Run `azd env set AZURE_SPEECH_SERVICE {Name of existing SPEECH service}`
-Rest of the instructions are same as the repository from where it is forked.
 
 Execute the following command, if you don't have any pre-existing Azure services and want to start from a fresh deployment.
 
