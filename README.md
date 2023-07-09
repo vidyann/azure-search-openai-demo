@@ -7,7 +7,7 @@ This sample demonstrates a few approaches for creating ChatGPT-like experiences 
 
 The repo includes sample data so it's ready to try end to end. In this sample application we use a fictitious company called Contoso Electronics, and the experience allows its employees to ask questions about the benefits, internal policies, as well as job descriptions and roles.
 
-This repository is a fork of the [Title](https://github.com/Azure-Samples/azure-search-openai-demo) and it adds support for indexing Video/Audio files (MP4, WAV) and Word documents (DOCX).
+This repository is a fork of the [original azure-search-openai-demo repository ](https://github.com/Azure-Samples/azure-search-openai-demo) and it adds support for indexing Video/Audio files (MP4, WAV) and Word documents (DOCX).
 
 ![RAG Architecture](docs/appcomponents.png)
 
@@ -60,6 +60,7 @@ You can run this repo virtually by using GitHub Codespaces or VS Code Remote Con
 #### Starting from scratch
 To enable indexing Audio/Video (MP4/WAV only) file, you need to provision Azure Speech Service and set environment variable. If not, the above files are not indexed.
 1. Run `azd env set AZURE_SPEECH_SERVICE {Name of existing SPEECH service}`
+Rest of the instructions are same as the repository from where it is forked.
 
 Execute the following command, if you don't have any pre-existing Azure services and want to start from a fresh deployment.
 
