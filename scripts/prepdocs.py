@@ -54,7 +54,6 @@ default_creds = azd_credential if args.searchkey == None or args.storagekey == N
 search_creds = default_creds if args.searchkey == None else AzureKeyCredential(args.searchkey)
 speechtotext_creds = default_creds if args.speechkey == None else AzureKeyCredential(args.speechkey)
 region = args.region
-print(f"Using region {region}")
 subscription_id = args.subscriptionid
 resource_group = args.resourcegroup
 
@@ -114,13 +113,15 @@ def upload_blobs(filename):
             audio.write_audiofile(audio_file)
 
         #transcribe audio to text using azure cognitive service speech to text
-        aad_token = speechtotext_creds.get_token("https://cognitiveservices.azure.com/.default")
-        token = aad_token.token
-        resource_id = f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.CognitiveServices/accounts/{args.speechservice}"
-        authorization_token = f"aad#{resource_id}#{token}"
-        print(f"authorization_token: {authorization_token}")
-        #speech_config = speechsdk.SpeechConfig(subscription=speechtotext_creds, region=speechtotext_region)
-        speech_config = speechsdk.SpeechConfig(auth_token=authorization_token, region=region)
+        if args.speechkey == None:
+            aad_token = speechtotext_creds.get_token("https://cognitiveservices.azure.com/.default")
+            token = aad_token.token
+            resource_id = f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.CognitiveServices/accounts/{args.speechservice}"
+            authorization_token = f"aad#{resource_id}#{token}"
+            print(f"authorization_token: {authorization_token}")
+            speech_config = speechsdk.SpeechConfig(auth_token=authorization_token, region=region)
+        else:
+            speech_config = speechsdk.SpeechConfig(subscription=args.speechkey, region=region)
 
         audio_config = speechsdk.AudioConfig(filename=audio_file)
         speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)

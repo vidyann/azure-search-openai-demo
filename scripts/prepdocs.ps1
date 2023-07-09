@@ -34,6 +34,18 @@ if (Test-Path -Path "/usr") {
 Write-Host 'Installing dependencies from "requirements.txt" into virtual environment'
 Start-Process -FilePath $venvPythonPath -ArgumentList "-m pip install -r ./scripts/requirements.txt" -Wait -NoNewWindow
 
+if ([string]::IsNullOrEmpty($env:AZURE_RESOURCE_GROUP)) {
+  $env:AZURE_RESOURCE_GROUP = "rg-$env:AZURE_ENV_NAME"
+  azd env set AZURE_RESOURCE_GROUP $env:AZURE_RESOURCE_GROUP
+}
+
+if ([string]::IsNullOrEmpty($env:AZURE_SPEECH_SERVICE)) {
+  $env:AZURE_SPEECH_SERVICE = "None"
+  azd env set $env:AZURE_SPEECH_SERVICE $env:AZURE_SPEECH_SERVICE
+}
+
+
+
 Write-Host 'Running "prepdocs.py"'
 $cwd = (Get-Location)
 Start-Process -FilePath $venvPythonPath -ArgumentList "./scripts/prepdocs.py $cwd/data/* --storageaccount $env:AZURE_STORAGE_ACCOUNT --container $env:AZURE_STORAGE_CONTAINER --searchservice $env:AZURE_SEARCH_SERVICE --index $env:AZURE_SEARCH_INDEX --formrecognizerservice $env:AZURE_FORMRECOGNIZER_SERVICE --tenantid $env:AZURE_TENANT_ID  --subscriptionid $env:AZURE_SUBSCRIPTION_ID --region $env:AZURE_LOCATION --resourcegroup $env:AZURE_RESOURCE_GROUP --speechservice $env:AZURE_SPEECH_SERVICE -v" -Wait -NoNewWindow
